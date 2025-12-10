@@ -391,5 +391,7 @@ def define_touch_target():
             define_artvm(t, v)
         elif t == "art-oemvm":
             define_artvm(t, v)
+        elif t == "art16k":
+            define_art(t, v)
         else:
             pass
