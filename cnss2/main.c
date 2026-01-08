@@ -93,11 +93,13 @@
 #define XDUMP_TIMEOUT_MS	20000
 #if IS_ENABLED(CONFIG_CNSS2_DIRECT_CX_SDAM)
 #define NOM_VOLTAGE			0x37A /* 890mV */
+#define NOM_V2_VOLTAGE			0x2EE /* 750mV */
 #define SVS_VOLTAGE			0x276 /* 630mV */
 #define SVS_L1_VOLTAGE			0x2AD /* 685mV */
 #define RET_VOLTAGE			0x15E /* 350mV */
 #else
 #define NOM_VOLTAGE			0x37C /* 892mV */
+#define NOM_V2_VOLTAGE			NOM_VOLTAGE /* 892mV */
 #define SVS_VOLTAGE			0x2B4 /* 692mV */
 #define SVS_L1_VOLTAGE			0x318 /* 792mV */
 #define RET_VOLTAGE			0x19C /* 412mV */
@@ -2829,6 +2831,20 @@ out:
 	return -ENOENT;
 }
 
+static int cnss_get_cx_nom_voltage(struct cnss_plat_data *plat_priv)
+{
+	int nom_voltage = NOM_V2_VOLTAGE;
+
+	cnss_pr_info("Device Major version: %d\n",
+		     plat_priv->device_version.major_version);
+
+	if (plat_priv->device_version.major_version == FW_V2_NUMBER)
+		nom_voltage = NOM_V2_VOLTAGE;
+	else if (plat_priv->device_version.major_version == FW_V1_NUMBER)
+		nom_voltage = NOM_VOLTAGE;
+
+	return nom_voltage;
+}
 #else
 static int cnss_set_cx_mode_sdam(struct cnss_plat_data *plat_priv,
 				 enum cx_modes arg)
@@ -2873,6 +2889,11 @@ static int cnss_enable_direct_cx_pmic_pbs(struct cnss_plat_data *plat_priv)
 static int cnss_get_nvmem_cells(struct cnss_plat_data *plat_priv)
 {
 	return 0;
+}
+
+static int cnss_get_cx_nom_voltage(struct cnss_plat_data *plat_priv)
+{
+	return NOM_VOLTAGE;
 }
 #endif
 static int cnss_set_cx_mode_pdc(struct cnss_plat_data *plat_priv,
@@ -3231,10 +3252,15 @@ u8 *cnss_debug_direct_cx(struct cnss_plat_data *plat_priv)
 int cnss_cx_voltage_corners_init(struct cnss_plat_data *plat_priv)
 {
 	int ret = 0;
+	int nom_voltage = NOM_V2_VOLTAGE;
+
+	nom_voltage = cnss_get_cx_nom_voltage(plat_priv);
+
+	cnss_pr_info("CX NOM voltage: 0.%dV\n", nom_voltage);
 
 	ret = cnss_set_cx_voltage_corner(plat_priv,
 					 CX_NOM,
-					 (u16)NOM_VOLTAGE);
+					 (u16)nom_voltage);
 	if (ret < 0) {
 		cnss_pr_err("Failed to write to NOM voltage corner\n");
 		goto out;
