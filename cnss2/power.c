@@ -93,7 +93,8 @@ static struct cnss_clk_cfg cnss_clk_list[] = {
 #define CNSS_MBOX_TIMEOUT_MS 1000
 /* Platform HW config */
 #define CNSS_PMIC_VOLTAGE_STEP 4
-#define CNSS_PMIC_AUTO_HEADROOM 16
+#define CNSS_PMIC_AUTO_HEADROOM_DEFAULT 16
+#define CNSS_PMIC_AUTO_HEADROOM (plat_priv->pmic_auto_headroom)
 #define CNSS_IR_DROP_WAKE 30
 #define CNSS_IR_DROP_SLEEP 10
 #define VREG_NOTFOUND 1
@@ -2481,6 +2482,18 @@ void cnss_power_misc_params_init(struct cnss_plat_data *plat_priv)
 	struct device *dev = &plat_priv->plat_dev->dev;
 	int ret;
 	u32 cfg_arr_size = 0, *cfg_arr = NULL;
+
+	/* Read PMIC auto headroom from devicetree, default to 16 if not present */
+	ret = of_property_read_u32(dev->of_node, "qcom,pmic-auto-headroom",
+				   &plat_priv->pmic_auto_headroom);
+	if (ret) {
+		plat_priv->pmic_auto_headroom = CNSS_PMIC_AUTO_HEADROOM_DEFAULT;
+		cnss_pr_info("PMIC auto headroom not set, using default: %d\n",
+			     plat_priv->pmic_auto_headroom);
+	} else {
+		cnss_pr_info("PMIC auto headroom configured: %d\n",
+			     plat_priv->pmic_auto_headroom);
+	}
 
 	/* common DT Entries */
 	plat_priv->pdc_init_table_len =

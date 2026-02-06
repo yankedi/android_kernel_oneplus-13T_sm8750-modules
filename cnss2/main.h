@@ -796,6 +796,7 @@ struct cnss_plat_data {
 	struct cnss_wlan_tsf_info tsf_info;
 	bool rc_pm_control;
 	enum cx_modes cx_mode;
+	u32 pmic_auto_headroom;
 };
 
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 16, 0))
