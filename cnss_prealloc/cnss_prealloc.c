@@ -147,6 +147,14 @@ static struct cnss_pool cnss_pools_fig[] = {
 	{128 * 1024, 14, "cnss-pool-128k", NULL, NULL, NULL},
 	{256 * 1024, 4, "cnss-pool-256k", NULL, NULL, NULL},
 };
+
+static struct cnss_pool cnss_pools_peach[] = {
+	{16 * 1024, 125, "cnss-pool-16k", NULL, NULL, NULL},
+	{32 * 1024, 15, "cnss-pool-32k", NULL, NULL, NULL},
+	{64 * 1024, 40, "cnss-pool-64k", NULL, NULL, NULL},
+	{128 * 1024, 14, "cnss-pool-128k", NULL, NULL, NULL},
+	{256 * 1024, 1, "cnss-pool-256k", NULL, NULL, NULL},
+};
 #else
 
 static struct cnss_pool cnss_pools_wcn6450[] = {
@@ -160,6 +168,14 @@ static struct cnss_pool cnss_pools_fig[] = {
 	{16 * 1024, 68, "cnss-pool-16k", NULL, NULL, NULL},
 	{32 * 1024, 62, "cnss-pool-32k", NULL, NULL, NULL},
 	{64 * 1024, 10, "cnss-pool-64k", NULL, NULL, NULL},
+	{128 * 1024, 9, "cnss-pool-128k", NULL, NULL, NULL},
+	{256 * 1024, 1, "cnss-pool-256k", NULL, NULL, NULL},
+};
+
+static struct cnss_pool cnss_pools_peach[] = {
+	{16 * 1024, 110, "cnss-pool-16k", NULL, NULL, NULL},
+	{32 * 1024, 13, "cnss-pool-32k", NULL, NULL, NULL},
+	{64 * 1024, 12, "cnss-pool-64k", NULL, NULL, NULL},
 	{128 * 1024, 9, "cnss-pool-128k", NULL, NULL, NULL},
 	{256 * 1024, 1, "cnss-pool-256k", NULL, NULL, NULL},
 };
@@ -344,11 +360,16 @@ static void cnss_assign_prealloc_pool(unsigned long device_id)
 		cnss_pools = cnss_pools_fig;
 		cnss_prealloc_pool_size = ARRAY_SIZE(cnss_pools_fig);
 		break;
+	case PEACH_DEVICE_ID:
+		cnss_force_prealloc_pool = true;
+		cnss_pools = cnss_pools_peach;
+		cnss_prealloc_pool_size = ARRAY_SIZE(cnss_pools_peach);
+		break;
+
 	case QCA6390_DEVICE_ID:
 	case QCA6490_DEVICE_ID:
 	case MANGO_DEVICE_ID:
-	case PEACH_DEVICE_ID:
-	case KIWI_DEVICE_ID:
+		case KIWI_DEVICE_ID:
 	default:
 		cnss_pools = cnss_pools_default;
 		cnss_prealloc_pool_size = ARRAY_SIZE(cnss_pools_default);
