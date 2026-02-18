@@ -72,6 +72,8 @@ static struct cnss_clk_cfg cnss_clk_list[] = {
 #define XO_CLK_GPIO			"qcom,xo-clk-gpio"
 #define SW_CTRL_GPIO			"qcom,sw-ctrl-gpio"
 #define WLAN_SW_CTRL_GPIO		"qcom,wlan-sw-ctrl-gpio"
+#define SW_CTRL_DATA_0_GPIO		"qcom,sw-ctrl-data-0-gpio"
+#define SW_CTRL_DATA_1_GPIO		"qcom,sw-ctrl-data-1-gpio"
 #define WLAN_EN_ACTIVE			"wlan_en_active"
 #define WLAN_EN_SLEEP			"wlan_en_sleep"
 #define WLAN_VREGS_PROP			"wlan_vregs"
@@ -992,6 +994,26 @@ int cnss_get_pinctrl(struct cnss_plat_data *plat_priv)
 		}
 	} else {
 		pinctrl_info->wlan_sw_ctrl_gpio = -EINVAL;
+	}
+
+	if (of_find_property(dev->of_node, SW_CTRL_DATA_0_GPIO, NULL)) {
+		pinctrl_info->sw_ctrl_data_0_gpio = of_get_named_gpio(dev->of_node,
+								      SW_CTRL_DATA_0_GPIO,
+								      0);
+		cnss_pr_dbg("Switch control data 0 GPIO: %d\n",
+			    pinctrl_info->sw_ctrl_data_0_gpio);
+	} else {
+		pinctrl_info->sw_ctrl_data_0_gpio = -EINVAL;
+	}
+
+	if (of_find_property(dev->of_node, SW_CTRL_DATA_1_GPIO, NULL)) {
+		pinctrl_info->sw_ctrl_data_1_gpio = of_get_named_gpio(dev->of_node,
+								      SW_CTRL_DATA_1_GPIO,
+								      0);
+		cnss_pr_dbg("Switch control data 1 GPIO: %d\n",
+			    pinctrl_info->sw_ctrl_data_1_gpio);
+	} else {
+		pinctrl_info->sw_ctrl_data_1_gpio = -EINVAL;
 	}
 
 	cnss_set_wakeup_cap_for_gpios(dev);
@@ -2725,4 +2747,54 @@ int cnss_dev_specific_power_on(struct cnss_plat_data *plat_priv)
 
 	plat_priv->powered_on = false;
 	return cnss_power_on_device(plat_priv, false);
+}
+
+void cnss_read_gpio_status_on_link_down(struct cnss_plat_data *plat_priv)
+{
+	struct cnss_pinctrl_info *pinctrl_info;
+	int wlan_sw_ctrl_status = -1;
+	int sw_ctrl_status = -1;
+	int sw_ctrl_data_0_status = -1;
+	int sw_ctrl_data_1_status = -1;
+
+	if (!plat_priv) {
+		cnss_pr_err("plat_priv is NULL\n");
+		return;
+	}
+
+	pinctrl_info = &plat_priv->pinctrl_info;
+
+	/* Read wlan-sw-ctrl GPIO status */
+	if (pinctrl_info->wlan_sw_ctrl_gpio >= 0) {
+		wlan_sw_ctrl_status =
+			gpio_get_value(pinctrl_info->wlan_sw_ctrl_gpio);
+		cnss_pr_info("wlan-sw-ctrl GPIO(%d) status = %d\n",
+			     pinctrl_info->wlan_sw_ctrl_gpio,
+			     wlan_sw_ctrl_status);
+	}
+
+	/* Read sw-ctrl GPIO status */
+	if (pinctrl_info->sw_ctrl_gpio >= 0) {
+		sw_ctrl_status = gpio_get_value(pinctrl_info->sw_ctrl_gpio);
+		cnss_pr_info("sw-ctrl GPIO(%d) status = %d\n",
+			     pinctrl_info->sw_ctrl_gpio, sw_ctrl_status);
+	}
+
+	/* Read sw-ctrl-data-0 GPIO status */
+	if (pinctrl_info->sw_ctrl_data_0_gpio >= 0) {
+		sw_ctrl_data_0_status =
+			gpio_get_value(pinctrl_info->sw_ctrl_data_0_gpio);
+		cnss_pr_info("sw-ctrl-data-0 GPIO(%d) status = %d\n",
+			     pinctrl_info->sw_ctrl_data_0_gpio,
+			     sw_ctrl_data_0_status);
+	}
+
+	/* Read sw-ctrl-data-1 GPIO status */
+	if (pinctrl_info->sw_ctrl_data_1_gpio >= 0) {
+		sw_ctrl_data_1_status =
+			gpio_get_value(pinctrl_info->sw_ctrl_data_1_gpio);
+		cnss_pr_info("sw-ctrl-data-1 GPIO(%d) status = %d\n",
+			     pinctrl_info->sw_ctrl_data_1_gpio,
+			     sw_ctrl_data_1_status);
+	}
 }

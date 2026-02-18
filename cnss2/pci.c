@@ -2055,7 +2055,10 @@ void cnss_pci_handle_linkdown(struct cnss_pci_data *pci_priv)
 {
 	struct cnss_plat_data *plat_priv = pci_priv->plat_priv;
 	struct pci_dev *pci_dev = pci_priv->pci_dev;
-	unsigned long flags;
+	unsigned long flags = 0;
+
+	/* Read GPIO status when PCIe link down is detected */
+	cnss_read_gpio_status_on_link_down(plat_priv);
 
 	if (test_bit(ENABLE_PCI_LINK_DOWN_PANIC,
 		     &plat_priv->ctrl_params.quirks))
@@ -4363,6 +4366,7 @@ static void cnss_qca6290_crash_shutdown(struct cnss_pci_data *pci_priv)
 	cnss_pr_dbg("Crash shutdown with driver_state 0x%lx\n",
 		    plat_priv->driver_state);
 
+	cnss_read_gpio_status_on_link_down(plat_priv);
 	ret = cnss_pci_collect_dump_info(pci_priv, true);
 	clear_bit(CNSS_IN_PANIC, &plat_priv->driver_state);
 }
