@@ -207,8 +207,11 @@ static int icnss_get_vreg_single(struct icnss_priv *priv,
 		if (!strcmp(vreg->cfg.name, ICNSS_2P2_REGULATOR))
 			vreg->cfg.is_supported = false;
 
-		if (!strcmp(vreg->cfg.name, ICNSS_2P2_EXT_REGULATOR))
+		if (!strcmp(vreg->cfg.name, ICNSS_2P2_EXT_REGULATOR)) {
 			vreg->cfg.is_supported = true;
+			icnss_set_feature_list(priv, CNSS_EXT_2P2RFA_SUPPORT_V01);
+			icnss_pr_dbg("2p2_ext regulator feature supported\n");
+		}
 	}
 
 done:
