@@ -2255,11 +2255,7 @@ int cnss_ol_cpr_cfg_ext_setup(struct cnss_plat_data *plat_priv,
 		u32 lsvs;
 		u32 svsL1_v;
 	} plat_vreg_param[QMI_WLFW_PMU_PARAMS_MAX_V01] = {0};
-	static bool config_done;
 	int cx_pin_idx = 0;
-
-	if (config_done)
-		return 0;
 
 	if (plat_priv->pmu_vreg_map_len <= 0 ||
 	    !plat_priv->pmu_vreg_map ||
@@ -2448,7 +2444,6 @@ int cnss_ol_cpr_cfg_ext_setup(struct cnss_plat_data *plat_priv,
 			break;
 	}
 end:
-	config_done = true;
 	return ret;
 }
 #else
