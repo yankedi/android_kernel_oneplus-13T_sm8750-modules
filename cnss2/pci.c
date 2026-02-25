@@ -2234,6 +2234,7 @@ static u32 cnss_dump_line_buf(char *line_buf, u32 data_len, bool dumpall)
 	const char *delim = "\n";
 	u32 cur = 0;
 
+	line_buf[data_len] = '\0';
 	ptr = line_buf;
 	while ((res = strsep(&ptr, delim)) != NULL) {
 		if (ptr) {
@@ -2250,8 +2251,11 @@ static u32 cnss_dump_line_buf(char *line_buf, u32 data_len, bool dumpall)
 			 * dump the data directly;
 			 * otherwise, pass the data to the next print
 			 */
-			if (dumpall || (res - line_buf < 4))
+			if (dumpall || (res - line_buf < 4)) {
 				cnss_pr_dbg("%s\n", res);
+				cur = 0;
+			}
+
 			else
 				memmove(line_buf, res, cur);
 		}
