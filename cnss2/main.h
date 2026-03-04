@@ -175,6 +175,8 @@ struct cnss_pinctrl_info {
 	int xo_clk_gpio; /*qca6490 only */
 	int sw_ctrl_gpio;
 	int wlan_sw_ctrl_gpio;
+	int sw_ctrl_data_0_gpio;
+	int sw_ctrl_data_1_gpio;
 };
 
 #if IS_ENABLED(CONFIG_MSM_SUBSYSTEM_RESTART)
@@ -909,6 +911,7 @@ int cnss_clear_feature_list(struct cnss_plat_data *plat_priv,
 int cnss_get_feature_list(struct cnss_plat_data *plat_priv,
 			  u64 *feature_list);
 int cnss_get_input_gpio_value(struct cnss_plat_data *plat_priv, int gpio_num);
+void cnss_read_gpio_status_on_link_down(struct cnss_plat_data *plat_priv);
 bool cnss_check_driver_loading_allowed(void);
 int cnss_dev_specific_power_on(struct cnss_plat_data *plat_priv);
 void cnss_recovery_handler(struct cnss_plat_data *plat_priv);
