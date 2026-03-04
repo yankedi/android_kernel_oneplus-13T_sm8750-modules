@@ -3149,10 +3149,12 @@ static void icnss_update_shutdown_state_to_fw(struct icnss_priv *priv,
 				icnss_pr_err("FW block shutdown timeout\n");
 		}
 
-		ret = wlfw_send_fw_shutdown_msg(priv);
-		if (ret < 0)
-			icnss_pr_err("Fail to send FW shutdown Indication %d\n",
-				     ret);
+		if (!atomic_read(&priv->is_idle_shutdown)) {
+			ret = wlfw_send_fw_shutdown_msg(priv);
+			if (ret < 0)
+				icnss_pr_err("Fail to send FW shutdown Indication %d\n",
+					     ret);
+		}
 	}
 }
 
