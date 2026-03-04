@@ -134,7 +134,6 @@ static struct cnss_pool cnss_pools_adrastea[] = {
 	{16 * 1024, 8, "cnss-pool-16k", NULL, NULL, NULL},
 	{32 * 1024, 8, "cnss-pool-32k", NULL, NULL, NULL},
 	{64 * 1024, 3, "cnss-pool-64k", NULL, NULL, NULL},
-	{128 * 1024, 0, "cnss-pool-128k", NULL, NULL, NULL},
 };
 
 static struct cnss_pool cnss_pools_wcn6750[] = {
