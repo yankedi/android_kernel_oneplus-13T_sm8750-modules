@@ -236,6 +236,10 @@ bool icnss_get_fw_cap(struct device *dev, enum icnss_fw_caps fw_cap)
 		is_supported = !!(priv->fw_caps &
 				  QMI_WLFW_CE_CMN_CFG_SUPPORT_V01);
 		break;
+	case ICNSS_FW_CAP_DIRECT_REFILL_SUPPORT:
+		is_supported = !!(priv->fw_caps &
+				  QMI_WLFW_DIRECT_REFILL_SUPPORT_V01);
+		break;
 	default:
 		icnss_pr_err("Invalid FW Capability: 0x%x\n", fw_cap);
 	}
