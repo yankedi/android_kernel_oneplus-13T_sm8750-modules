@@ -776,6 +776,7 @@ struct cnss_plat_data {
 	int pd_count;
 	bool pm_suspend_in_progress;
 	struct notifier_block pm_notifier;
+	char bdfname_dt[MAX_FIRMWARE_NAME_LEN];
 	struct cnss_xo_trim_config xo_trim_conf;
 	struct cnss_xdump_helper xdump_helper;
 	int direct_cx_data_pin_mode;
