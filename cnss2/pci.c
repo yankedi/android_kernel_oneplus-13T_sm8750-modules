@@ -4394,6 +4394,9 @@ static int cnss_qca6290_ramdump(struct cnss_pci_data *pci_priv)
 	cnss_suspend_pci_link(pci_priv);
 	cnss_pci_deinit_mhi(pci_priv);
 	cnss_power_off_device(plat_priv);
+	/* Restore caldb/rddm reuse seg if necessary */
+	if (test_bit(CNSS_DAEMON_CONNECTED, &plat_priv->driver_state))
+		cnss_caldb_rddm_reuse(plat_priv, false);
 
 	return ret;
 }
@@ -9378,4 +9381,62 @@ void cnss_pci_deinit(struct cnss_plat_data *plat_priv)
 		pci_unregister_driver(&cnss_pci_driver);
 		cnss_driver_registered = false;
 	}
+}
+
+u8 **cnss_pci_collect_rddm_seg_info(struct cnss_pci_data *pci_priv,
+				    u32 *rddm_entries,
+				    u32 *rddm_seg_len)
+{
+	struct image_info *rddm_image;
+	u8 **seg_array = NULL;
+	u32 i;
+
+	if (!pci_priv) {
+		cnss_pr_err("PCI private data is NULL\n");
+		return NULL;
+	}
+
+	/* Check MHI controller */
+	if (!pci_priv->mhi_ctrl) {
+		cnss_pr_err("MHI controller is NULL\n");
+		return NULL;
+	}
+
+	/* Get RDDM image */
+	rddm_image = pci_priv->mhi_ctrl->rddm_image;
+	if (!rddm_image) {
+		cnss_pr_err("RDDM image is NULL\n");
+		return NULL;
+	}
+
+	/* Validate RDDM image entries and buffer */
+	if (rddm_image->entries <= 1 || !rddm_image->mhi_buf) {
+		cnss_pr_err("Invalid RDDM image: entries=%d, mhi_buf=%pK\n",
+			    rddm_image->entries, rddm_image->mhi_buf);
+		return NULL;
+	}
+
+	/* Allocate array to hold segment pointers */
+	seg_array = vzalloc(sizeof(u8 *) * (rddm_image->entries - 1));
+	if (!seg_array)
+		return NULL;
+
+	/* Collect all segment pointers */
+	for (i = 0; i < rddm_image->entries - 1; i++) {
+		if (!rddm_image->mhi_buf[i].buf) {
+			cnss_pr_err("NULL buffer at segment %d\n", i);
+			vfree(seg_array);
+			return NULL;
+		}
+		seg_array[i] = (char *)rddm_image->mhi_buf[i].buf;
+	}
+
+	/* Set output parameters */
+	*rddm_entries = rddm_image->entries - 1;
+	*rddm_seg_len = pci_priv->mhi_ctrl->seg_len;
+
+	cnss_pr_info("Successfully collected %d RDDM segments, seg_len=%d\n",
+		     *rddm_entries, *rddm_seg_len);
+
+	return seg_array;
 }

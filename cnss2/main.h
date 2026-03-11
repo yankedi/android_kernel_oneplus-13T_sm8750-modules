@@ -367,6 +367,8 @@ enum cnss_driver_event_type {
 	CNSS_DRIVER_EVENT_XO_TRIM_IND,
 	CNSS_DRIVER_EVENT_XDUMP_BT_ARRIVAL,
 	CNSS_DRIVER_EVENT_XDUMP_BT_OVER_WL_REQ,
+	CNSS_DRIVER_EVENT_CALDB_RDDM_SAVE,
+	CNSS_DRIVER_EVENT_CALDB_RDDM_RESTORE,
 	CNSS_DRIVER_EVENT_MAX,
 };
 
@@ -945,6 +947,7 @@ int cnss_set_bidirectional_ack_pdc(struct cnss_plat_data *plat_priv,
 u8 *cnss_debug_direct_cx(struct cnss_plat_data *plat_priv);
 int cnss_cx_voltage_corners_init(struct cnss_plat_data *plat_priv);
 int cnss_xo_trim_perform(struct cnss_xo_trim_config *conf);
+int cnss_caldb_rddm_reuse(struct cnss_plat_data *plat_priv, bool save);
 
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 15, 0))
 static inline int cnss_timer_delete(struct timer_list *timer)

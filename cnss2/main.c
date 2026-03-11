@@ -86,6 +86,8 @@
 #define CNSS_DMS_QMI_CONNECTION_WAIT_RETRY 200
 #define CNSS_DAEMON_CONNECT_TIMEOUT_MS  30000
 #define CNSS_CAL_DB_FILE_NAME "wlfw_cal_db.bin"
+#define CNSS_CALDB_RDDM_REUSE_FILE_NAME "caldb_rddm_reuse.bin"
+
 #define CNSS_CAL_START_PROBE_WAIT_RETRY_MAX 100
 #define CNSS_CAL_START_PROBE_WAIT_MS	500
 #define CNSS_TIME_SYNC_PERIOD_INVALID	0xFFFFFFFF
@@ -121,6 +123,8 @@
 enum cnss_cal_db_op {
 	CNSS_CAL_DB_UPLOAD,
 	CNSS_CAL_DB_DOWNLOAD,
+	CNSS_CAL_DB_RDDM_REUSE_UPLOAD,
+	CNSS_CAL_DB_RDDM_REUSE_DOWNLOAD,
 	CNSS_CAL_DB_INVALID_OP,
 };
 
@@ -1361,7 +1365,9 @@ qmi_send:
 }
 
 static int cnss_cal_db_mem_update(struct cnss_plat_data *plat_priv,
-				  enum cnss_cal_db_op op, u32 *size)
+				  enum cnss_cal_db_op op, u32 *size,
+				  u8 **rddm_seg, u32 rddm_entries,
+				  u32 rddm_seg_len)
 {
 	int ret = 0;
 	u32 timeout = cnss_get_timeout(plat_priv,
@@ -1369,13 +1375,17 @@ static int cnss_cal_db_mem_update(struct cnss_plat_data *plat_priv,
 	enum cnss_plat_ipc_qmi_client_id_v01 client_id =
 					CNSS_PLAT_IPC_DAEMON_QMI_CLIENT_V01;
 
-	if (op >= CNSS_CAL_DB_INVALID_OP)
-		return -EINVAL;
-
-	if (!plat_priv->cbc_file_download) {
-		cnss_pr_info("CAL DB file not required as per BDF\n");
-		return 0;
+	if (op == CNSS_CAL_DB_DOWNLOAD || op == CNSS_CAL_DB_UPLOAD) {
+		if (!plat_priv->cbc_file_download) {
+			cnss_pr_info("CAL DB file not required as per BDF\n");
+			return 0;
+		}
+		if (!plat_priv->cal_mem || !plat_priv->cal_mem->va) {
+			cnss_pr_err("CAL DB Memory not setup for FW\n");
+			return -EINVAL;
+		}
 	}
+
 	if (*size == 0) {
 		cnss_pr_err("Invalid cal file size\n");
 		return -EINVAL;
@@ -1390,35 +1400,54 @@ static int cnss_cal_db_mem_update(struct cnss_plat_data *plat_priv,
 			return ret;
 		}
 	}
-	if (!plat_priv->cal_mem || !plat_priv->cal_mem->va) {
-		cnss_pr_err("CAL DB Memory not setup for FW\n");
-		return -EINVAL;
-	}
 
 	/* Copy CAL DB file contents to/from CAL_TYPE_DDR mem allocated to FW */
-	if (op == CNSS_CAL_DB_DOWNLOAD) {
+	switch (op) {
+	case CNSS_CAL_DB_DOWNLOAD:
 		cnss_pr_dbg("Initiating Calibration file download to mem\n");
 		ret = cnss_plat_ipc_qmi_file_download(client_id,
 						      CNSS_CAL_DB_FILE_NAME,
 						      plat_priv->cal_mem->va,
-						      size);
-	} else {
+						      size,
+						      rddm_seg,
+						      rddm_entries,
+						      rddm_seg_len);
+		break;
+	case CNSS_CAL_DB_UPLOAD:
 		cnss_pr_dbg("Initiating Calibration mem upload to file\n");
 		ret = cnss_plat_ipc_qmi_file_upload(client_id,
 						    CNSS_CAL_DB_FILE_NAME,
 						    plat_priv->cal_mem->va,
-						    *size);
+						    *size,
+						    rddm_seg,
+						    rddm_entries,
+						    rddm_seg_len);
+		break;
+	case CNSS_CAL_DB_RDDM_REUSE_DOWNLOAD:
+		cnss_pr_dbg("Download CalDB/RDDM reuse data to mem\n");
+		ret = cnss_plat_ipc_qmi_file_download(client_id,
+						      CNSS_CALDB_RDDM_REUSE_FILE_NAME,
+						      NULL,
+						      size,
+						      rddm_seg,
+						      rddm_entries,
+						      rddm_seg_len);
+		break;
+	case CNSS_CAL_DB_RDDM_REUSE_UPLOAD:
+		cnss_pr_dbg("Upload CalDB/RDDM reuse data to file\n");
+		ret = cnss_plat_ipc_qmi_file_upload(client_id,
+						    CNSS_CALDB_RDDM_REUSE_FILE_NAME,
+						    NULL,
+						    *size,
+						    rddm_seg,
+						    rddm_entries,
+						    rddm_seg_len);
+		break;
+	default:
+		return -EINVAL;
 	}
 
-	if (ret)
-		cnss_pr_err("Cal DB file %s %s failure\n",
-			    CNSS_CAL_DB_FILE_NAME,
-			    op == CNSS_CAL_DB_DOWNLOAD ? "download" : "upload");
-	else
-		cnss_pr_dbg("Cal DB file %s %s size %d done\n",
-			    CNSS_CAL_DB_FILE_NAME,
-			    op == CNSS_CAL_DB_DOWNLOAD ? "download" : "upload",
-			    *size);
+	cnss_pr_info("Op %d with size %d, ret = %d\n", op, *size, ret);
 
 	return ret;
 }
@@ -1435,7 +1464,61 @@ static int cnss_cal_mem_upload_to_file(struct cnss_plat_data *plat_priv)
 		return -EINVAL;
 	}
 	return cnss_cal_db_mem_update(plat_priv, CNSS_CAL_DB_UPLOAD,
-				      &plat_priv->cal_file_size);
+				      &plat_priv->cal_file_size, NULL, 0, 0);
+}
+
+static inline bool cnss_is_caldb_present(struct cnss_plat_data *plat_priv)
+{
+	struct cnss_fw_mem *fw_mem = plat_priv->fw_mem;
+	int i;
+
+	for (i = 0; i < plat_priv->fw_mem_seg_len; i++) {
+		if (fw_mem[i].type == QMI_WLFW_MEM_CAL_V01 ||
+		    fw_mem[i].type == QMI_WLFW_MEM_CALDB_SEG_V01) {
+			cnss_pr_dbg("CalDB memory present\n");
+			return true;
+		}
+	}
+
+	cnss_pr_dbg("CalDB memory not present\n");
+
+	return false;
+}
+
+int cnss_caldb_rddm_reuse(struct cnss_plat_data *plat_priv, bool save)
+{
+	int ret = 0;
+
+	if (!cnss_is_caldb_present(plat_priv) &&
+	    plat_priv->recovery_enabled) {
+		u8 **rddm_seg = NULL;
+		u32 rddm_entries = 0;
+		u32 rddm_seg_len = 0;
+		u32 caldb_len = plat_priv->cal_file_size;
+
+		rddm_seg = cnss_bus_collect_rddm_seg_info(plat_priv,
+							  &rddm_entries,
+							  &rddm_seg_len);
+		if (!rddm_seg)
+			return -EINVAL;
+
+		for (int i = 0; i < rddm_entries; i++)
+			cnss_pr_dbg("[%d] 0x%p - 0x%x\n",
+				    i, rddm_seg[i], rddm_seg_len);
+
+		if (!caldb_len)
+			caldb_len = rddm_seg_len * rddm_entries;
+		ret = cnss_cal_db_mem_update(plat_priv,
+					     save ?
+						CNSS_CAL_DB_RDDM_REUSE_UPLOAD :
+						CNSS_CAL_DB_RDDM_REUSE_DOWNLOAD,
+					     &caldb_len,
+					     rddm_seg,
+					     rddm_entries, rddm_seg_len);
+		vfree(rddm_seg);
+	}
+
+	return ret;
 }
 
 static int cnss_cal_file_download_to_mem(struct cnss_plat_data *plat_priv,
@@ -1452,7 +1535,7 @@ static int cnss_cal_file_download_to_mem(struct cnss_plat_data *plat_priv,
 	 */
 	*cal_file_size = plat_priv->cal_mem->size;
 	return cnss_cal_db_mem_update(plat_priv, CNSS_CAL_DB_DOWNLOAD,
-				      cal_file_size);
+				      cal_file_size, NULL, 0, 0);
 }
 
 static int cnss_fw_ready_hdlr(struct cnss_plat_data *plat_priv)
@@ -1568,6 +1651,10 @@ static char *cnss_driver_event_to_str(enum cnss_driver_event_type type)
 		return "XDUMP_BT_ARRIVAL";
 	case CNSS_DRIVER_EVENT_XDUMP_BT_OVER_WL_REQ:
 		return "XDUMP_BT_OVER_WL_REQ";
+	case CNSS_DRIVER_EVENT_CALDB_RDDM_SAVE:
+		return "CALDB_RDDM_SAVE";
+	case CNSS_DRIVER_EVENT_CALDB_RDDM_RESTORE:
+		return "CALDB_RDDM_RESTORE";
 	case CNSS_DRIVER_EVENT_MAX:
 		return "EVENT_MAX";
 	}
@@ -4084,6 +4171,13 @@ skip_shutdown:
 
 	if (cal_info->cal_status == CNSS_CAL_DONE) {
 		cnss_cal_mem_upload_to_file(plat_priv);
+		/* Backup caldb_reuse mem if DAEMON connected here, or postpone
+		 * until it is connected.
+		 */
+		if (test_bit(CNSS_DAEMON_CONNECTED, &plat_priv->driver_state))
+			cnss_driver_event_post(plat_priv,
+					       CNSS_DRIVER_EVENT_CALDB_RDDM_SAVE,
+					       0, NULL);
 		if (!test_bit(CNSS_DRIVER_REGISTER, &plat_priv->driver_state))
 			goto out;
 
@@ -4625,6 +4719,12 @@ static void cnss_driver_event_work(struct work_struct *work)
 		case CNSS_DRIVER_EVENT_XDUMP_BT_OVER_WL_REQ:
 			ret = cnss_xdump_bt_over_wl_req_hdlr(plat_priv,
 							     event->data);
+			break;
+		case CNSS_DRIVER_EVENT_CALDB_RDDM_SAVE:
+			ret = cnss_caldb_rddm_reuse(plat_priv, true);
+			break;
+		case CNSS_DRIVER_EVENT_CALDB_RDDM_RESTORE:
+			ret = cnss_caldb_rddm_reuse(plat_priv, false);
 			break;
 		default:
 			cnss_pr_err("Invalid driver event type: %d",
@@ -5940,6 +6040,15 @@ static void cnss_daemon_connection_update_cb(void *cb_ctx, bool status)
 		cnss_pr_info("CNSS Daemon connected\n");
 		set_bit(CNSS_DAEMON_CONNECTED, &plat_priv->driver_state);
 		complete(&plat_priv->daemon_connected);
+
+		/* Backup caldb_reuse mem if not yet */
+		if (!plat_priv->cbc_enabled ||
+		    (plat_priv->cbc_enabled &&
+		     test_bit(CNSS_COLD_BOOT_CAL_DONE,
+			      &plat_priv->driver_state)))
+			cnss_driver_event_post(plat_priv,
+					       CNSS_DRIVER_EVENT_CALDB_RDDM_SAVE,
+					       0, NULL);
 	} else {
 		cnss_pr_info("CNSS Daemon disconnected\n");
 		reinit_completion(&plat_priv->daemon_connected);

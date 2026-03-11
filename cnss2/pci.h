@@ -394,4 +394,9 @@ void cnss_pci_start_xdump_timer(struct cnss_pci_data *pci_priv);
 int cnss_pci_get_msi_address(struct cnss_pci_data *pci_priv, u32 *msi_addr_low,
 			     u32 *msi_addr_high);
 void cnss_pci_notify_mhi_error(struct cnss_pci_data *pci_priv);
+int cnss_pci_save_rddm_seg(struct cnss_pci_data *pci_priv);
+int cnss_pci_restore_rddm_seg(struct cnss_pci_data *pci_priv);
+u8 **cnss_pci_collect_rddm_seg_info(struct cnss_pci_data *pci_priv,
+				    u32 *rddm_entries,
+				    u32 *rddm_seg_len);
 #endif /* _CNSS_PCI_H */
