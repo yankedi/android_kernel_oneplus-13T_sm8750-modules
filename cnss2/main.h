@@ -799,6 +799,8 @@ struct cnss_plat_data {
 	bool rc_pm_control;
 	enum cx_modes cx_mode;
 	u32 pmic_auto_headroom;
+	u32 wake_voltage_drop_adjustment;
+	u32 sleep_voltage_drop_adjustment;
 };
 
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 16, 0))

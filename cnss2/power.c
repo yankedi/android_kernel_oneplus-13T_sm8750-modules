@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2016-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2025 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2026 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/clk.h>
@@ -95,8 +95,10 @@ static struct cnss_clk_cfg cnss_clk_list[] = {
 #define CNSS_PMIC_VOLTAGE_STEP 4
 #define CNSS_PMIC_AUTO_HEADROOM_DEFAULT 16
 #define CNSS_PMIC_AUTO_HEADROOM (plat_priv->pmic_auto_headroom)
-#define CNSS_IR_DROP_WAKE 30
-#define CNSS_IR_DROP_SLEEP 10
+#define CNSS_IR_DROP_WAKE_DEFAULT 30
+#define CNSS_IR_DROP_WAKE (plat_priv->wake_voltage_drop_adjustment)
+#define CNSS_IR_DROP_SLEEP_DEFAULT 10
+#define CNSS_IR_DROP_SLEEP (plat_priv->sleep_voltage_drop_adjustment)
 #define VREG_NOTFOUND 1
 
 /**
@@ -2344,34 +2346,58 @@ int cnss_ol_cpr_cfg_ext_setup(struct cnss_plat_data *plat_priv,
 					  strlen(plat_vreg_param[j].vreg)))
 				continue;
 
-			if (fw_pmu_param_ext[i].wake_volt_valid)
+			if (fw_pmu_param_ext[i].wake_volt_valid) {
 				wake_volt = roundup(fw_pmu_param_ext[i].wake_volt,
 						    CNSS_PMIC_VOLTAGE_STEP) -
-						    CNSS_PMIC_AUTO_HEADROOM +
-						    CNSS_IR_DROP_WAKE;
-			if (fw_pmu_param_ext[i].sleep_volt_valid)
+						    CNSS_PMIC_AUTO_HEADROOM;
+				if (strcmp(fw_pmu_param_ext[i].pin_name, "VDDD_WLCX_0P9") != 0) {
+					wake_volt += CNSS_IR_DROP_WAKE_DEFAULT;
+				} else {
+					wake_volt += CNSS_IR_DROP_WAKE;
+				}
+			}
+			if (fw_pmu_param_ext[i].sleep_volt_valid) {
 				sleep_volt = roundup(fw_pmu_param_ext[i].sleep_volt,
 						     CNSS_PMIC_VOLTAGE_STEP) -
-						     CNSS_PMIC_AUTO_HEADROOM +
-						     CNSS_IR_DROP_SLEEP;
-			if (fw_pmu_param_ext[i].svs_v_valid)
+						     CNSS_PMIC_AUTO_HEADROOM;
+				if (strcmp(fw_pmu_param_ext[i].pin_name, "VDDD_WLCX_0P9") != 0) {
+					sleep_volt += CNSS_IR_DROP_SLEEP_DEFAULT;
+				} else {
+					sleep_volt += CNSS_IR_DROP_SLEEP;
+				}
+			}
+			if (fw_pmu_param_ext[i].svs_v_valid) {
 				svs_v = roundup(fw_pmu_param_ext[i].svs_v,
 						CNSS_PMIC_VOLTAGE_STEP) -
-						CNSS_PMIC_AUTO_HEADROOM +
-						CNSS_IR_DROP_WAKE;
+						CNSS_PMIC_AUTO_HEADROOM;
+				if (strcmp(fw_pmu_param_ext[i].pin_name, "VDDD_WLCX_0P9") != 0) {
+					svs_v += CNSS_IR_DROP_WAKE_DEFAULT;
+				} else {
+					svs_v += CNSS_IR_DROP_WAKE;
+				}
+			}
 			if (fw_pmu_param_ext[i].lsvs_valid) {
 				if (strcmp(fw_pmu_param_ext[i].pin_name,
 					   "VDDD_AON_0P9") == 0)
 					sleep_volt = roundup(fw_pmu_param_ext[i].lsvs,
 							     CNSS_PMIC_VOLTAGE_STEP) -
-							     CNSS_PMIC_AUTO_HEADROOM +
-							     CNSS_IR_DROP_SLEEP;
+							     CNSS_PMIC_AUTO_HEADROOM;
+				if (strcmp(fw_pmu_param_ext[i].pin_name, "VDDD_WLCX_0P9") != 0) {
+					sleep_volt += CNSS_IR_DROP_SLEEP_DEFAULT;
+				} else {
+					sleep_volt += CNSS_IR_DROP_SLEEP;
+				}
 			}
-			if (fw_pmu_param_ext[i].svsL1_valid)
+			if (fw_pmu_param_ext[i].svsL1_valid) {
 				svsL1_v = roundup(fw_pmu_param_ext[i].svsL1_v,
 						  CNSS_PMIC_VOLTAGE_STEP) -
-						  CNSS_PMIC_AUTO_HEADROOM +
-						  CNSS_IR_DROP_WAKE;
+						  CNSS_PMIC_AUTO_HEADROOM;
+				if (strcmp(fw_pmu_param_ext[i].pin_name, "VDDD_WLCX_0P9") != 0) {
+					svsL1_v += CNSS_IR_DROP_WAKE_DEFAULT;
+				} else {
+					svsL1_v += CNSS_IR_DROP_WAKE;
+				}
+			}
 
 			plat_vreg_param[j].wake_volt =
 				(wake_volt > plat_vreg_param[j].wake_volt ?
@@ -2439,13 +2465,6 @@ int cnss_ol_cpr_cfg_ext_setup(struct cnss_plat_data *plat_priv,
 				ret = cnss_set_cx_voltage_corner(plat_priv,
 								 CX_SVS,
 								 plat_vreg_param[i].svs_v);
-			} else {
-				ret =
-				cnss_aop_set_vreg_param(plat_priv,
-							plat_vreg_param[i].vreg,
-							CNSS_VREG_VOLTAGE,
-							CNSS_TCS_UP_SEQ,
-							plat_vreg_param[i].svs_v);
 			}
 		}
 		if (plat_vreg_param[i].svsL1_v > 0) {
@@ -2454,13 +2473,6 @@ int cnss_ol_cpr_cfg_ext_setup(struct cnss_plat_data *plat_priv,
 				ret = cnss_set_cx_voltage_corner(plat_priv,
 								 CX_SVSL1,
 								 plat_vreg_param[i].svsL1_v);
-			} else {
-				ret =
-				cnss_aop_set_vreg_param(plat_priv,
-							plat_vreg_param[i].vreg,
-							CNSS_VREG_VOLTAGE,
-							CNSS_TCS_UP_SEQ,
-							plat_vreg_param[i].svsL1_v);
 			}
 		}
 		if (ret < 0)
@@ -2493,6 +2505,30 @@ void cnss_power_misc_params_init(struct cnss_plat_data *plat_priv)
 	} else {
 		cnss_pr_info("PMIC auto headroom configured: %d\n",
 			     plat_priv->pmic_auto_headroom);
+	}
+
+	ret = of_property_read_u32(dev->of_node,
+				   "qcom,wake-voltage-drop-adjustment",
+				   &plat_priv->wake_voltage_drop_adjustment);
+	if (ret) {
+		plat_priv->wake_voltage_drop_adjustment = CNSS_IR_DROP_WAKE_DEFAULT;
+		cnss_pr_info("Wake voltage drop not set, using default: %d\n",
+			     plat_priv->wake_voltage_drop_adjustment);
+	} else {
+		cnss_pr_info("Wake voltage drop configured: %d\n",
+			     plat_priv->wake_voltage_drop_adjustment);
+	}
+
+	ret = of_property_read_u32(dev->of_node,
+				   "qcom,sleep-voltage-drop-adjustment",
+				   &plat_priv->sleep_voltage_drop_adjustment);
+	if (ret) {
+		plat_priv->sleep_voltage_drop_adjustment = CNSS_IR_DROP_SLEEP_DEFAULT;
+		cnss_pr_info("Sleep voltage drop not set, using default: %d\n",
+			     plat_priv->sleep_voltage_drop_adjustment);
+	} else {
+		cnss_pr_info("Sleep voltage drop configured: %d\n",
+			     plat_priv->sleep_voltage_drop_adjustment);
 	}
 
 	/* common DT Entries */
