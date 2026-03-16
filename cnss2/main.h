@@ -32,8 +32,12 @@
 #include <net/cnss2.h>
 #endif
 #if IS_ENABLED(CONFIG_QCOM_MEMORY_DUMP_V2) || IS_ENABLED(CONFIG_QCOM_MINIDUMP)
-#ifdef CONFIG_QLI
+#if defined(__has_include)
+#if __has_include(<linux/firmware/qcom/memory_dump.h>)
 #include <linux/firmware/qcom/memory_dump.h>
+#else
+#include <soc/qcom/memory_dump.h>
+#endif
 #else
 #include <soc/qcom/memory_dump.h>
 #endif
