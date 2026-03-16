@@ -496,7 +496,7 @@ static int cnss_vreg_unvote(struct cnss_plat_data *plat_priv,
 {
 	struct cnss_vreg_info *vreg;
 
-	if (plat_priv->is_fw_managed_pwr)
+	if (plat_priv->pwr_ctrl_mode != CNSS_POWER_CTRL_HOST)
 		return 0;
 
 	list_for_each_entry_reverse(vreg, vreg_list, list) {
@@ -1263,7 +1263,7 @@ static int cnss_pm_notify(struct notifier_block *b,
 
 void cnss_pm_notifier_init(struct cnss_plat_data *plat_priv)
 {
-	if (plat_priv->is_fw_managed_pwr) {
+	if (plat_priv->pwr_ctrl_mode == CNSS_POWER_CTRL_SCMI) {
 		plat_priv->pm_notifier.notifier_call = cnss_pm_notify;
 		plat_priv->pm_notifier.priority = 100;
 		register_pm_notifier(&plat_priv->pm_notifier);
@@ -1272,7 +1272,7 @@ void cnss_pm_notifier_init(struct cnss_plat_data *plat_priv)
 
 void cnss_pm_notifier_deinit(struct cnss_plat_data *plat_priv)
 {
-	if (plat_priv->is_fw_managed_pwr)
+	if (plat_priv->pwr_ctrl_mode == CNSS_POWER_CTRL_SCMI)
 		unregister_pm_notifier(&plat_priv->pm_notifier);
 }
 
@@ -1467,7 +1467,7 @@ int cnss_power_on_device(struct cnss_plat_data *plat_priv, bool reset)
 
 	set_bit(CNSS_POWERING_ON, &plat_priv->driver_state);
 
-	if (plat_priv->is_fw_managed_pwr) {
+	if (plat_priv->pwr_ctrl_mode == CNSS_POWER_CTRL_SCMI) {
 		ret = cnss_scmi_pm_enable(plat_priv);
 		if (ret)
 			goto out;
@@ -1616,7 +1616,7 @@ void cnss_power_off_device(struct cnss_plat_data *plat_priv)
 		cnss_aop_update_mode(plat_priv);
 	cnss_bus_shutdown_cleanup(plat_priv);
 	cnss_disable_dev_sol_irq(plat_priv);
-	if (plat_priv->is_fw_managed_pwr) {
+	if (plat_priv->pwr_ctrl_mode == CNSS_POWER_CTRL_SCMI) {
 		cnss_fw_managed_power_gpio(plat_priv, false);
 		cnss_fw_managed_power_regulator(plat_priv, false);
 
@@ -2782,7 +2782,7 @@ int cnss_dev_specific_power_on(struct cnss_plat_data *plat_priv)
 	int ret;
 
 	if (plat_priv->dt_type != CNSS_DTT_MULTIEXCHG ||
-	    plat_priv->is_fw_managed_pwr)
+	    plat_priv->pwr_ctrl_mode != CNSS_POWER_CTRL_HOST)
 		return 0;
 
 	ret = cnss_get_vreg_type(plat_priv, CNSS_VREG_PRIM);
@@ -2841,4 +2841,23 @@ void cnss_read_gpio_status_on_link_down(struct cnss_plat_data *plat_priv)
 			     pinctrl_info->sw_ctrl_data_1_gpio,
 			     sw_ctrl_data_1_status);
 	}
+}
+
+void cnss_power_ctrl_mode_init(struct cnss_plat_data *plat_priv)
+{
+	int ret;
+
+	ret  = of_property_read_u32(plat_priv->plat_dev->dev.of_node,
+				    "power-ctrl-mode",
+				    &plat_priv->pwr_ctrl_mode);
+	if (ret) {
+		cnss_pr_info("Failed to get power ctrl mode, ret %d\n", ret);
+		plat_priv->pwr_ctrl_mode = CNSS_POWER_CTRL_HOST;
+	} else if (plat_priv->pwr_ctrl_mode >= CNSS_POWER_CTRL_LAST) {
+		cnss_pr_info("Invalid power ctrl mode: %d\n",
+			     plat_priv->pwr_ctrl_mode);
+		plat_priv->pwr_ctrl_mode = CNSS_POWER_CTRL_HOST;
+	}
+
+	cnss_pr_info("Get power ctrl mode: %d\n", plat_priv->pwr_ctrl_mode);
 }
