@@ -1428,16 +1428,11 @@ void cnss_fw_managed_domain_detach(struct cnss_plat_data *plat_priv)
 }
 #endif
 
-int cnss_power_on_device(struct cnss_plat_data *plat_priv, bool reset)
+static int
+cnss_power_on_device_host(struct cnss_plat_data *plat_priv, bool reset)
 {
 	int ret = 0;
 
-	if (plat_priv->powered_on) {
-		cnss_pr_dbg("Already powered up");
-		return 0;
-	}
-
-	cnss_pr_info("Device id: 0x%lx\n", plat_priv->device_id);
 	if (plat_priv->device_id == FIG_DEVICE_ID) {
 		ret = cnss_set_cx_mode(plat_priv, CX_LEGACY);
 		if (ret < 0) {
@@ -1459,6 +1454,71 @@ int cnss_power_on_device(struct cnss_plat_data *plat_priv, bool reset)
 		}
 	}
 
+	ret = cnss_vreg_on_type(plat_priv, CNSS_VREG_PRIM);
+	if (ret) {
+		cnss_pr_err("Failed to turn on vreg, err = %d\n", ret);
+		goto out;
+	}
+
+	ret = cnss_clk_on(plat_priv, &plat_priv->clk_list);
+	if (ret) {
+		cnss_pr_err("Failed to turn on clocks, err = %d\n", ret);
+		goto vreg_off;
+	}
+
+	if (plat_priv->device_id == FIG_DEVICE_ID) {
+		ret = cnss_set_direct_cx_host_sol_value(plat_priv, 1);
+		if (ret < 0) {
+			cnss_pr_err("Failed to assert Host SOL\n");
+		}
+	}
+#ifdef CONFIG_PULLDOWN_WLANEN
+	if (reset) {
+		/* The default state of wlan_en maybe not low,
+		 * according to datasheet, we should put wlan_en
+		 * to low first, and trigger high.
+		 * And the default delay for qca6390 is at least 4ms,
+		 * for qcn7605/qca6174, it is 10us. For safe, set 5ms delay
+		 * here.
+		 */
+		ret = cnss_select_pinctrl_state(plat_priv, false);
+		if (ret) {
+			cnss_pr_err("Failed to select pinctrl state, err = %d\n",
+				    ret);
+			goto clk_off;
+		}
+
+		usleep_range(4000, 5000);
+	}
+#endif
+
+	ret = cnss_select_pinctrl_enable(plat_priv);
+	if (ret) {
+		cnss_pr_err("Failed to select pinctrl state, err = %d\n", ret);
+		goto clk_off;
+	}
+
+	return 0;
+
+clk_off:
+	cnss_clk_off(plat_priv, &plat_priv->clk_list);
+vreg_off:
+	cnss_vreg_off_type(plat_priv, CNSS_VREG_PRIM);
+out:
+	return ret;
+
+}
+
+int cnss_power_on_device(struct cnss_plat_data *plat_priv, bool reset)
+{
+	int ret = 0;
+
+	if (plat_priv->powered_on) {
+		cnss_pr_dbg("Already powered up");
+		return 0;
+	}
+
+	cnss_pr_info("Device id: 0x%lx\n", plat_priv->device_id);
 	cnss_wlan_hw_disable_check(plat_priv);
 	if (test_bit(CNSS_WLAN_HW_DISABLED, &plat_priv->driver_state)) {
 		cnss_pr_dbg("Avoid WLAN Power On. WLAN HW Disbaled");
@@ -1469,53 +1529,13 @@ int cnss_power_on_device(struct cnss_plat_data *plat_priv, bool reset)
 
 	if (plat_priv->pwr_ctrl_mode == CNSS_POWER_CTRL_SCMI) {
 		ret = cnss_scmi_pm_enable(plat_priv);
-		if (ret)
-			goto out;
-	} else {
-		ret = cnss_vreg_on_type(plat_priv, CNSS_VREG_PRIM);
-		if (ret) {
-			cnss_pr_err("Failed to turn on vreg, err = %d\n", ret);
-			goto out;
-		}
+	} else if (plat_priv->pwr_ctrl_mode == CNSS_POWER_CTRL_HOST) {
+		ret = cnss_power_on_device_host(plat_priv, reset);
+	}
 
-		ret = cnss_clk_on(plat_priv, &plat_priv->clk_list);
-		if (ret) {
-			cnss_pr_err("Failed to turn on clocks, err = %d\n", ret);
-			goto vreg_off;
-		}
-
-		cnss_pr_info("Device id: 0x%lx\n", plat_priv->device_id);
-		if (plat_priv->device_id == FIG_DEVICE_ID) {
-			ret = cnss_set_direct_cx_host_sol_value(plat_priv, 1);
-			if (ret < 0) {
-				cnss_pr_err("Failed to assert Host SOL\n");
-			}
-		}
-#ifdef CONFIG_PULLDOWN_WLANEN
-		if (reset) {
-			/* The default state of wlan_en maybe not low,
-			 * according to datasheet, we should put wlan_en
-			 * to low first, and trigger high.
-			 * And the default delay for qca6390 is at least 4ms,
-			 * for qcn7605/qca6174, it is 10us. For safe, set 5ms delay
-			 * here.
-			 */
-			ret = cnss_select_pinctrl_state(plat_priv, false);
-			if (ret) {
-				cnss_pr_err("Failed to select pinctrl state, err = %d\n",
-					    ret);
-				goto clk_off;
-			}
-
-			usleep_range(4000, 5000);
-		}
-#endif
-
-		ret = cnss_select_pinctrl_enable(plat_priv);
-		if (ret) {
-			cnss_pr_err("Failed to select pinctrl state, err = %d\n", ret);
-			goto clk_off;
-		}
+	if (ret) {
+		clear_bit(CNSS_POWERING_ON, &plat_priv->driver_state);
+		return ret;
 	}
 
 	plat_priv->powered_on = true;
@@ -1525,14 +1545,6 @@ int cnss_power_on_device(struct cnss_plat_data *plat_priv, bool reset)
 	cnss_set_host_sol_value(plat_priv, 0);
 
 	return 0;
-
-clk_off:
-	cnss_clk_off(plat_priv, &plat_priv->clk_list);
-vreg_off:
-	cnss_vreg_off_type(plat_priv, CNSS_VREG_PRIM);
-out:
-	clear_bit(CNSS_POWERING_ON, &plat_priv->driver_state);
-	return ret;
 }
 
 static int cnss_aop_update_mode(struct cnss_plat_data *plat_priv)
@@ -1599,6 +1611,48 @@ out:
 	return ret;
 }
 
+static int cnss_power_off_device_host(struct cnss_plat_data *plat_priv)
+{
+	int ret = 0;
+
+	if (plat_priv->device_id == FIG_DEVICE_ID ||
+	    plat_priv->device_id == PEACH_DEVICE_ID ||
+	    plat_priv->device_id == KIWI_DEVICE_ID)
+		cnss_aop_update_mode(plat_priv);
+
+	if (plat_priv->device_id == FIG_DEVICE_ID) {
+		ret = cnss_set_cxpc_power_on_off(plat_priv, CX_OFF);
+		if (ret < 0)
+			cnss_pr_err("failed to set cx to CX_OFF\n");
+
+		ret = cnss_set_direct_cx_host_sol_value(plat_priv, 0);
+		if (ret < 0)
+			cnss_pr_err("Failed to de-assert Host SOL\n");
+
+		cnss_pr_info("De-asserted Host SOL\n");
+		usleep_range(1000, 2000);
+		if ((cnss_get_cxpc(plat_priv) == CX_RET) &&
+		    test_bit(CNSS_DRIVER_RECOVERY, &plat_priv->driver_state))
+			cnss_pr_info("CX is in RET state\n");
+	}
+
+	cnss_select_pinctrl_state(plat_priv, false);
+	cnss_clk_off(plat_priv, &plat_priv->clk_list);
+	cnss_vreg_off_type(plat_priv, CNSS_VREG_PRIM);
+
+	if (plat_priv->cx_mode == CX_DATA_PIN_PDC) {
+		ret = cnss_set_bidirectional_ack_pdc(plat_priv,
+						     ACK_GEN_DISABLED);
+		if (ret < 0) {
+			cnss_pr_err("Failed to set bi-d ack mode\n");
+			return ret;
+		}
+	}
+
+	return ret;
+}
+
+
 void cnss_power_off_device(struct cnss_plat_data *plat_priv)
 {
 	int ret = 0;
@@ -1610,49 +1664,17 @@ void cnss_power_off_device(struct cnss_plat_data *plat_priv)
 
 	set_bit(CNSS_POWER_OFF, &plat_priv->driver_state);
 	cnss_pr_dbg("Device_id: 0x%lx\n", plat_priv->device_id);
-	if (plat_priv->device_id == FIG_DEVICE_ID ||
-	    plat_priv->device_id == PEACH_DEVICE_ID ||
-	    plat_priv->device_id == KIWI_DEVICE_ID)
-		cnss_aop_update_mode(plat_priv);
 	cnss_bus_shutdown_cleanup(plat_priv);
 	cnss_disable_dev_sol_irq(plat_priv);
 	if (plat_priv->pwr_ctrl_mode == CNSS_POWER_CTRL_SCMI) {
 		cnss_fw_managed_power_gpio(plat_priv, false);
 		cnss_fw_managed_power_regulator(plat_priv, false);
-
-	} else {
-		if (plat_priv->device_id == FIG_DEVICE_ID) {
-			ret = cnss_set_cxpc_power_on_off(plat_priv, CX_OFF);
-			if (ret < 0) {
-				cnss_pr_err("failed to set cx to CX_OFF\n");
-				//CNSS_ASSERT(0);
-			}
-
-			ret = cnss_set_direct_cx_host_sol_value(plat_priv, 0);
-			if (ret < 0)
-				cnss_pr_err("Failed to de-assert Host SOL\n");
-			cnss_pr_info("De-asserted Host SOL\n");
-			usleep_range(1000, 2000);
-			if ((cnss_get_cxpc(plat_priv) == CX_RET) &&
-			    test_bit(CNSS_DRIVER_RECOVERY,
-				     &plat_priv->driver_state)) {
-				cnss_pr_info("CX is in RET state\n");
-			}
-		}
-		cnss_select_pinctrl_state(plat_priv, false);
-		cnss_clk_off(plat_priv, &plat_priv->clk_list);
-		cnss_vreg_off_type(plat_priv, CNSS_VREG_PRIM);
-
-		if (plat_priv->cx_mode == CX_DATA_PIN_PDC) {
-			ret = cnss_set_bidirectional_ack_pdc(plat_priv,
-							     ACK_GEN_DISABLED);
-			if (ret < 0) {
-				cnss_pr_err("Failed to set bi-d ack mode\n");
-				return;
-			}
-		}
-
+	} else if (plat_priv->pwr_ctrl_mode == CNSS_POWER_CTRL_HOST) {
+		ret = cnss_power_off_device_host(plat_priv);
+		if (ret)
+			return;
 	}
+
 	plat_priv->powered_on = false;
 }
 
