@@ -2071,7 +2071,9 @@ static int cnss_get_resources(struct cnss_plat_data *plat_priv)
 {
 	int ret = 0;
 
-	if (plat_priv->pwr_ctrl_mode == CNSS_POWER_CTRL_SCMI) {
+	if (plat_priv->pwr_ctrl_mode == CNSS_POWER_CTRL_ALWAYS_ON) {
+		goto out;
+	} else if (plat_priv->pwr_ctrl_mode == CNSS_POWER_CTRL_SCMI) {
 		ret = cnss_fw_managed_domain_attach(plat_priv);
 		goto out;
 	}
@@ -2110,7 +2112,9 @@ static void cnss_put_resources(struct cnss_plat_data *plat_priv)
 {
 	cnss_xo_trim_deinit(plat_priv);
 
-	if (plat_priv->pwr_ctrl_mode == CNSS_POWER_CTRL_SCMI) {
+	if (plat_priv->pwr_ctrl_mode == CNSS_POWER_CTRL_ALWAYS_ON) {
+		return;
+	} else if (plat_priv->pwr_ctrl_mode == CNSS_POWER_CTRL_SCMI) {
 		if (plat_priv->powered_on) {
 			cnss_fw_managed_power_gpio(plat_priv,
 						   false);
