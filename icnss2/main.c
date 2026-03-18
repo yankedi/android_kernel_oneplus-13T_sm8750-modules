@@ -755,6 +755,7 @@ static bool icnss_is_smp2p_valid(struct icnss_priv *priv,
 	if (priv->device_id == WCN6750_DEVICE_ID ||
 	    priv->device_id == WCN6450_DEVICE_ID ||
 	    priv->device_id == WCN7750_DEVICE_ID ||
+	    priv->device_id == WCN8750_DEVICE_ID ||
 	    priv->wpss_supported)
 		return IS_ERR_OR_NULL(priv->smp2p_info[smp2p_entry].smem_state);
 	else
@@ -878,6 +879,7 @@ static irqreturn_t fw_crash_indication_handler(int irq, void *ctx)
 		icnss_ignore_fw_timeout(true);
 		if (priv->device_id == WCN6750_DEVICE_ID ||
 		    priv->device_id == WCN7750_DEVICE_ID ||
+		    priv->device_id == WCN8750_DEVICE_ID ||
 		    priv->device_id == WCN6450_DEVICE_ID) {
 			clear_bit(ICNSS_SOC_WAKE_DONE, &priv->state);
 			complete(&priv->smp2p_soc_wake_wait);
@@ -1292,7 +1294,8 @@ static int icnss_driver_event_server_arrive(struct icnss_priv *priv,
 	set_bit(ICNSS_WLFW_CONNECTED, &priv->state);
 
 	if (priv->device_id == ADRASTEA_DEVICE_ID ||
-	    priv->device_id == WCN7750_DEVICE_ID) {
+	    priv->device_id == WCN7750_DEVICE_ID ||
+	    priv->device_id == WCN8750_DEVICE_ID) {
 		ret = icnss_hw_power_on(priv);
 		if (ret)
 			goto fail;
@@ -1323,6 +1326,7 @@ static int icnss_driver_event_server_arrive(struct icnss_priv *priv,
 
 	if (priv->device_id == WCN6750_DEVICE_ID ||
 	    priv->device_id == WCN7750_DEVICE_ID ||
+	    priv->device_id == WCN8750_DEVICE_ID ||
 	    priv->device_id == WCN6450_DEVICE_ID) {
 		if (!icnss_get_temperature(priv, &temp)) {
 			icnss_pr_dbg("Temperature: %d\n", temp);
@@ -1381,6 +1385,7 @@ static int icnss_driver_event_server_arrive(struct icnss_priv *priv,
 
 	if (priv->device_id == WCN6750_DEVICE_ID ||
 	    priv->device_id == WCN7750_DEVICE_ID ||
+	    priv->device_id == WCN8750_DEVICE_ID ||
 	    priv->device_id == WCN6450_DEVICE_ID) {
 
 		ret = wlfw_device_info_send_msg(priv);
@@ -1438,7 +1443,8 @@ static int icnss_driver_event_server_arrive(struct icnss_priv *priv,
 			goto cleanup_hw_poweroff;
 	}
 
-	if (priv->device_id == WCN7750_DEVICE_ID) {
+	if (priv->device_id == WCN7750_DEVICE_ID ||
+	    priv->device_id == WCN8750_DEVICE_ID) {
 		ret = icnss_load_phy_ucode(priv);
 		if (ret < 0) {
 			icnss_pr_err("Phy ucode image loading failed, ret = %d\n", ret);
@@ -1467,7 +1473,8 @@ static int icnss_driver_event_server_arrive(struct icnss_priv *priv,
 	}
 
 	if (priv->device_id == WCN6450_DEVICE_ID ||
-	    priv->device_id == WCN7750_DEVICE_ID) {
+	    priv->device_id == WCN7750_DEVICE_ID ||
+	    priv->device_id == WCN8750_DEVICE_ID) {
 		ret = icnss_wlfw_qdss_dnld_send_sync(priv);
 		if (ret < 0)
 			icnss_pr_info("Failed to download qdss config file, ret = %d\n",
@@ -1476,6 +1483,7 @@ static int icnss_driver_event_server_arrive(struct icnss_priv *priv,
 
 	if ((priv->device_id == WCN6750_DEVICE_ID ||
 	    priv->device_id == WCN7750_DEVICE_ID ||
+	    priv->device_id == WCN8750_DEVICE_ID ||
 	    priv->device_id == WCN6450_DEVICE_ID) &&
 	    !priv->legacy_ipc_transport) {
 		if (!priv->fw_soc_wake_ack_irq)
@@ -2066,7 +2074,8 @@ static int icnss_driver_event_fw_ready_ind(struct icnss_priv *priv, void *data,
 	 * If we turn off 1.8 AON power rail which is supplying power, it will result into pci
 	 * enumeration failure. So, avoid doing power off in this case.
 	 */
-	if (!(priv->device_id == WCN7750_DEVICE_ID))
+	if (!(priv->device_id == WCN7750_DEVICE_ID ||
+	      priv->device_id == WCN8750_DEVICE_ID))
 		icnss_hw_power_off(priv);
 	else if (cold_boot)
 		icnss_hw_power_off(priv);
@@ -2539,6 +2548,7 @@ static int icnss_driver_event_pd_service_down(struct icnss_priv *priv,
 
 	if ((priv->device_id == WCN6750_DEVICE_ID ||
 	    priv->device_id == WCN7750_DEVICE_ID ||
+	    priv->device_id == WCN8750_DEVICE_ID ||
 	    priv->device_id == WCN6450_DEVICE_ID) &&
 	    !priv->legacy_ipc_transport) {
 		icnss_send_smp2p(priv, ICNSS_RESET_MSG,
@@ -3191,6 +3201,7 @@ static int icnss_wpss_early_notifier_nb(struct notifier_block *nb,
 		icnss_ignore_fw_timeout(true);
 		if (priv->device_id == WCN6750_DEVICE_ID ||
 		    priv->device_id == WCN7750_DEVICE_ID ||
+		    priv->device_id == WCN8750_DEVICE_ID ||
 		    priv->device_id == WCN6450_DEVICE_ID) {
 			clear_bit(ICNSS_SOC_WAKE_DONE, &priv->state);
 			complete(&priv->smp2p_soc_wake_wait);
@@ -3243,7 +3254,8 @@ static int icnss_wpss_notifier_nb(struct notifier_block *nb,
 			icnss_msa0_ramdump(priv);
 			priv->notif_crashed = false;
 		} else {
-			if (priv->device_id == WCN7750_DEVICE_ID) {
+			if (priv->device_id == WCN7750_DEVICE_ID ||
+			    priv->device_id == WCN8750_DEVICE_ID) {
 
 				if (priv->pinctrl_info.wlan_en_gpio) {
 					gpio_val = gpio_get_value(priv->pinctrl_info.wlan_en_gpio);
@@ -3879,6 +3891,7 @@ static int icnss_register_ramdump_devices(struct icnss_priv *priv)
 
 	if (priv->device_id == WCN6750_DEVICE_ID ||
 	    priv->device_id == WCN7750_DEVICE_ID ||
+	    priv->device_id == WCN8750_DEVICE_ID ||
 	    priv->device_id == WCN6450_DEVICE_ID) {
 		priv->m3_dump_phyareg = icnss_create_ramdump_device(priv,
 						ICNSS_M3_SEGMENT(
@@ -4284,6 +4297,15 @@ static struct icnss_msi_config msi_config_wcn7750 = {
 	},
 };
 
+static struct icnss_msi_config msi_config_wcn8750 = {
+	.total_vectors = 28,
+	.total_users = MSI_USERS,
+	.users = (struct icnss_msi_user[]) {
+		{ .name = "CE", .num_vectors = 10, .base_vector = 0 },
+		{ .name = "DP", .num_vectors = 18, .base_vector = 10 },
+	},
+};
+
 static struct icnss_msi_config msi_config_wcn6450 = {
 	.total_vectors = 14,
 	.total_users = MSI_USERS,
@@ -4301,6 +4323,8 @@ static int icnss_get_msi_assignment(struct icnss_priv *priv)
 		priv->msi_config = &msi_config_wcn6450;
 	else if (priv->device_id == WCN7750_DEVICE_ID)
 		priv->msi_config = &msi_config_wcn7750;
+	else if (priv->device_id == WCN8750_DEVICE_ID)
+		priv->msi_config = &msi_config_wcn8750;
 
 	return 0;
 }
@@ -4789,7 +4813,8 @@ int icnss_wlan_enable(struct device *dev, struct icnss_wlan_enable_cfg *config,
 		icnss_setup_dms_mac(priv);
 
 	if (priv->device_id == WCN6750_DEVICE_ID  ||
-	    priv->device_id == WCN7750_DEVICE_ID) {
+	    priv->device_id == WCN7750_DEVICE_ID ||
+	    priv->device_id == WCN8750_DEVICE_ID) {
 		if (!icnss_get_temperature(priv, &temp)) {
 			icnss_pr_dbg("Temperature: %d\n", temp);
 			if (temp < WLAN_EN_TEMP_THRESHOLD)
@@ -5746,7 +5771,8 @@ static int icnss_resource_parse(struct icnss_priv *priv)
 	}
 
 	if (priv->device_id == WCN6450_DEVICE_ID ||
-	    priv->device_id == WCN7750_DEVICE_ID)
+	    priv->device_id == WCN7750_DEVICE_ID ||
+	    priv->device_id == WCN8750_DEVICE_ID)
 		icnss_parse_gpio_config(priv);
 
 	if (priv->device_id == ADRASTEA_DEVICE_ID) {
@@ -5801,6 +5827,7 @@ static int icnss_resource_parse(struct icnss_priv *priv)
 		}
 	} else if (priv->device_id == WCN6750_DEVICE_ID ||
 		   priv->device_id == WCN7750_DEVICE_ID ||
+		   priv->device_id == WCN8750_DEVICE_ID ||
 		   priv->device_id == WCN6450_DEVICE_ID) {
 		res = platform_get_resource_byname(pdev, IORESOURCE_MEM,
 						   "msi_addr");
@@ -6163,7 +6190,8 @@ static int icnss_smmu_dt_parse(struct icnss_priv *priv)
 				iommu_set_fault_handler(priv->iommu_domain,
 						icnss_smmu_fault_handler,
 						priv);
-			else if (priv->device_id == WCN7750_DEVICE_ID)
+			else if (priv->device_id == WCN7750_DEVICE_ID ||
+				 priv->device_id == WCN8750_DEVICE_ID)
 				icnss_register_iommu_fault_handler_irq(priv);
 		}
 
@@ -6245,6 +6273,9 @@ void icnss_add_fw_prefix_name(struct icnss_priv *priv, char *prefix_name,
 	else if (priv->device_id == WCN7750_DEVICE_ID)
 		scnprintf(prefix_name, ICNSS_MAX_FILE_NAME,
 			  WCN7750_PATH_PREFIX "%s", name);
+	else if (priv->device_id == WCN8750_DEVICE_ID)
+		scnprintf(prefix_name, ICNSS_MAX_FILE_NAME,
+			  WCN8750_PATH_PREFIX "%s", name);
 	icnss_pr_dbg("File added with prefix: %s\n", prefix_name);
 }
 
@@ -6253,6 +6284,7 @@ static const struct platform_device_id icnss_platform_id_table[] = {
 	{ .name = "adrastea", .driver_data = ADRASTEA_DEVICE_ID, },
 	{ .name = "wcn6450", .driver_data = WCN6450_DEVICE_ID, },
 	{ .name = "wcn7750", .driver_data = WCN7750_DEVICE_ID, },
+	{ .name = "wcn8750", .driver_data = WCN8750_DEVICE_ID, },
 	{ },
 };
 
@@ -6269,6 +6301,9 @@ static const struct of_device_id icnss_dt_match[] = {
 	{
 		.compatible = "qcom,wcn7750",
 		.data = (void *)&icnss_platform_id_table[3]},
+	{
+		.compatible = "qcom,wcn8750",
+		.data = (void *)&icnss_platform_id_table[4]},
 	{ },
 };
 
@@ -6300,6 +6335,7 @@ static void icnss_init_control_params(struct icnss_priv *priv)
 
 	if (priv->device_id == WCN6750_DEVICE_ID ||
 	    priv->device_id == WCN7750_DEVICE_ID ||
+	    priv->device_id == WCN8750_DEVICE_ID ||
 	    priv->device_id == WCN6450_DEVICE_ID ||
 	    of_property_read_bool(priv->pdev->dev.of_node,
 				  "wpss-support-enable"))
@@ -6307,6 +6343,7 @@ static void icnss_init_control_params(struct icnss_priv *priv)
 
 	if (priv->device_id == WCN6750_DEVICE_ID ||
 	    priv->device_id == WCN7750_DEVICE_ID ||
+	    priv->device_id == WCN8750_DEVICE_ID ||
 	    priv->device_id == WCN6450_DEVICE_ID) {
 		ret = of_property_read_string(priv->pdev->dev.of_node,
 					      "wcn-hw-version",
@@ -6326,7 +6363,8 @@ static void icnss_init_control_params(struct icnss_priv *priv)
 	if (priv->bdf_download_support && priv->device_id == ADRASTEA_DEVICE_ID)
 		priv->ctrl_params.bdf_type = ICNSS_BDF_BIN;
 
-	if (priv->device_id == WCN7750_DEVICE_ID)
+	if (priv->device_id == WCN7750_DEVICE_ID ||
+	    priv->device_id == WCN8750_DEVICE_ID)
 		icnss_set_feature_list(priv, CNSS_AUX_UC_SUPPORT_V01);
 
 	if (of_property_read_bool(priv->pdev->dev.of_node,
@@ -6477,6 +6515,9 @@ static const char *icnss_get_device_name(const struct platform_device_id *device
 
 	case WCN7750_DEVICE_ID:
 		return "ORNE";
+
+	case WCN8750_DEVICE_ID:
+		return "KASAI";
 	}
 	return "UNKNOWN";
 }
@@ -6611,6 +6652,7 @@ static int icnss_probe(struct platform_device *pdev)
 
 	if (priv->device_id == WCN6750_DEVICE_ID ||
 	    priv->device_id == WCN7750_DEVICE_ID ||
+	    priv->device_id == WCN8750_DEVICE_ID ||
 	    priv->device_id == WCN6450_DEVICE_ID) {
 		priv->soc_wake_wq = alloc_workqueue("icnss_soc_wake_event",
 						    WQ_UNBOUND|WQ_HIGHPRI, 1);
@@ -6758,6 +6800,7 @@ static void icnss_remove(struct platform_device *pdev)
 
 	if (priv->device_id == WCN6750_DEVICE_ID ||
 	    priv->device_id == WCN7750_DEVICE_ID ||
+	    priv->device_id == WCN8750_DEVICE_ID ||
 	    priv->device_id == WCN6450_DEVICE_ID) {
 		icnss_genl_exit();
 		icnss_runtime_pm_deinit(priv);
@@ -6848,6 +6891,7 @@ static int icnss_pm_suspend(struct device *dev)
 	if (ret == 0) {
 		if (priv->device_id == WCN6750_DEVICE_ID ||
 		    priv->device_id == WCN7750_DEVICE_ID ||
+		    priv->device_id == WCN8750_DEVICE_ID ||
 		    priv->device_id == WCN6450_DEVICE_ID) {
 			if (test_bit(ICNSS_PD_RESTART, &priv->state) ||
 			    !test_bit(ICNSS_MODE_ON, &priv->state))
