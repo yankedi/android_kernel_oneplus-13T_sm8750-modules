@@ -298,8 +298,16 @@ struct cnss_plat_data *cnss_get_plat_priv_by_rc_num(int rc_num)
 static inline int
 cnss_get_qrtr_node_id(struct cnss_plat_data *plat_priv)
 {
-	return of_property_read_u32(plat_priv->dev_node,
-		"qcom,qrtr_node_id", &plat_priv->qrtr_node_id);
+	struct device *dev;
+	struct device_node *dt_node;
+
+	if (!plat_priv || !plat_priv->plat_dev)
+		return -EINVAL;
+
+	dev = &plat_priv->plat_dev->dev;
+	dt_node = (plat_priv->dev_node ? plat_priv->dev_node : dev->of_node);
+	return of_property_read_u32(dt_node, "qcom,qrtr_node_id",
+				    &plat_priv->qrtr_node_id);
 }
 
 void cnss_get_qrtr_info(struct cnss_plat_data *plat_priv)
