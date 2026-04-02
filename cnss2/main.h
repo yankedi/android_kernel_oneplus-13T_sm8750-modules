@@ -815,6 +815,7 @@ struct cnss_plat_data {
 #endif
 	struct cnss_wlan_host_param *host_param;
 	struct cnss_wlan_tsf_info tsf_info;
+	bool m2_supply_detected;
 	bool rc_pm_control;
 	enum cx_modes cx_mode;
 	u32 pmic_auto_headroom;
