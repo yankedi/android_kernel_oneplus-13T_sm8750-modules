@@ -157,7 +157,7 @@ define_camera_module()
 load("@bazel_skylib//rules:common_settings.bzl", "string_flag")
 string_flag(
     name = "project_name",
-    build_setting_default = "none",
+    build_setting_default = "sun",
 )
 config_setting(
     name = "no_project",
