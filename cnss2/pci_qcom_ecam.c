@@ -97,7 +97,8 @@ int cnss_wlan_adsp_pc_enable(struct cnss_pci_data *pci_priv, bool control)
  * RC driver team and will be maintained by them.
  */
 static inline
-int cnss_rc_rtpm_mgmt_wrapper(struct pci_dev *pdev, bool link_up)
+int cnss_rc_rtpm_mgmt_wrapper(struct pci_dev *pdev, bool link_up,
+			      bool rpm_usage_count_dropped)
 {
 	int ret = -EINVAL;
 	struct device *dev, *host_bridge_dev;
@@ -127,8 +128,13 @@ int cnss_rc_rtpm_mgmt_wrapper(struct pci_dev *pdev, bool link_up)
 
 	if (link_up) {
 		pm_suspend_ignore_children(dev, false);
-		ret = pm_runtime_resume(dev);
-		pm_runtime_barrier(dev);
+		if (rpm_usage_count_dropped) {
+			ret = pm_runtime_resume(dev);
+			pm_runtime_barrier(dev);
+		} else {
+			cnss_pr_dbg("Resume PCIe link for pcie link down\n");
+			ret = pm_runtime_get_sync(dev);
+		}
 		cnss_pr_info("PCIe resume: ret:%d, usage_count:%d, runtime_status:%d\n",
 			     ret, atomic_read(&dev->power.usage_count),
 			     dev->power.runtime_status);
@@ -140,8 +146,13 @@ int cnss_rc_rtpm_mgmt_wrapper(struct pci_dev *pdev, bool link_up)
 		}
 	} else {
 		pm_suspend_ignore_children(dev, true);
-		ret = pm_runtime_suspend(dev);
-		pm_runtime_barrier(dev);
+		if (rpm_usage_count_dropped) {
+			ret = pm_runtime_suspend(dev);
+			pm_runtime_barrier(dev);
+		} else {
+			cnss_pr_dbg("Suspend PCIe link for pcie link down\n");
+			ret = pm_runtime_put_sync(dev);
+		}
 		cnss_pr_info("PCIe suspend: ret:%d, usage_count:%d, runtime_status:%d\n",
 			     ret, atomic_read(&dev->power.usage_count),
 			     dev->power.runtime_status);
@@ -161,11 +172,15 @@ int cnss_set_pci_link(struct cnss_pci_data *pci_priv, bool link_up)
 {
 	int ret = 0;
 	struct cnss_plat_data *plat_priv;
+	bool rpm_usage_count_dropped = true;
 
 	if (!pci_priv) {
 		cnss_pr_err("pci_priv is NULL\n");
 		return -ENODEV;
 	}
+
+	if (pci_priv->pci_link_down_ind)
+		rpm_usage_count_dropped = false;
 
 	plat_priv = pci_priv->plat_priv;
 	/* PCIe device never enters D3Cold in ALWAYS_ON mode */
@@ -175,7 +190,8 @@ int cnss_set_pci_link(struct cnss_pci_data *pci_priv, bool link_up)
 
 	cnss_pr_info("%s PCI link, \n", link_up ? "Resuming" : "Suspending");
 
-	ret = cnss_rc_rtpm_mgmt_wrapper(pci_priv->pci_dev, link_up);
+	ret = cnss_rc_rtpm_mgmt_wrapper(pci_priv->pci_dev, link_up,
+					rpm_usage_count_dropped);
 
 	cnss_pr_info("cnss_set_pci_link, ret = %d\n", ret);
 
