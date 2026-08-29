@@ -56,6 +56,8 @@
 #define OPLUS_OFP_900NIT_DBV_LEVEL							(0x0DBB)
 /* cmd sequence debounce time */
 #define OPLUS_OFP_CMD_SEQUENCE_DEBOUNCE_TIME				(1000)
+/* Let the fingerprint listener queue TP events before display produces UI_READY. */
+#define OPLUS_OFP_TP_NOTIFIER_PRIORITY					(-1)
 
 #define to_dsi_display(x) container_of(x, struct dsi_display, host)
 
@@ -288,6 +290,7 @@ int oplus_ofp_init(void *dsi_panel)
 
 			/* add for touchpanel event notifier */
 			p_oplus_ofp_params->touchpanel_event_notifier.notifier_call = oplus_ofp_touchpanel_event_notifier_call;
+			p_oplus_ofp_params->touchpanel_event_notifier.priority = OPLUS_OFP_TP_NOTIFIER_PRIORITY;
 			rc = touchpanel_event_register_notifier(&p_oplus_ofp_params->touchpanel_event_notifier);
 			if (rc) {
 				OFP_ERR("failed to register touchpanel event notifier, rc=%d\n", rc);
@@ -3908,6 +3911,8 @@ int oplus_ofp_touchpanel_event_notifier_call(struct notifier_block *nb, unsigned
 	struct dsi_display *display = get_main_display();
 	struct sde_connector *sde_conn;
 	struct drm_event event;
+	unsigned int fp_press;
+	int rc;
 
 	if (!display || !display->panel) {
 		OPLUS_DSI_ERR("display is null\n");
@@ -3924,26 +3929,32 @@ int oplus_ofp_touchpanel_event_notifier_call(struct notifier_block *nb, unsigned
 
 	OPLUS_OFP_TRACE_BEGIN("oplus_ofp_touchpanel_event_notifier_call");
 
-	if (tp_event) {
-		if (action == EVENT_ACTION_FOR_FINGPRINT) {
-			OFP_DEBUG("EVENT_ACTION_FOR_FINGPRINT\n");
+	if (tp_event && action == EVENT_ACTION_FOR_FINGPRINT) {
+		OFP_DEBUG("EVENT_ACTION_FOR_FINGPRINT\n");
 
-			if (tp_event->touch_state == 1) {
-				OFP_INFO("tp touchdown\n");
-				if (oplus_ofp_video_mode_30hz_aod_is_enabled() && oplus_ofp_get_aod_state()) {
-					event.type = DRM_EVENT_TP_TOUCHDOWN;
-					event.length = sizeof(bool);
-					OFP_INFO("video mode accelerate exit from AOD status notify\n");
-					msm_mode_object_event_notify(&sde_conn->base.base,
-						sde_conn->base.dev, &event, (u8 *)&sde_conn->panel_dead);
-				} else {
-					/* send aod off cmds in doze mode to speed up fingerprint unlocking */
-					oplus_ofp_aod_off_set();
-				}
-			}
+		if (tp_event->touch_state != 0 && tp_event->touch_state != 1) {
+			OFP_ERR("invalid tp touch state:%u\n", tp_event->touch_state);
+			goto out;
+		}
+
+		fp_press = tp_event->touch_state;
+		OFP_INFO("tp fp press:%u\n", fp_press);
+		rc = oplus_ofp_notify_fp_press(&fp_press);
+		if (rc) {
+			OFP_ERR("failed to update tp fp press:%u, rc=%d\n", fp_press, rc);
+		}
+
+		if (fp_press && oplus_ofp_video_mode_30hz_aod_is_enabled()
+				&& oplus_ofp_get_aod_state()) {
+			event.type = DRM_EVENT_TP_TOUCHDOWN;
+			event.length = sizeof(bool);
+			OFP_INFO("video mode accelerate exit from AOD status notify\n");
+			msm_mode_object_event_notify(&sde_conn->base.base,
+				sde_conn->base.dev, &event, (u8 *)&sde_conn->panel_dead);
 		}
 	}
 
+out:
 	OPLUS_OFP_TRACE_END("oplus_ofp_touchpanel_event_notifier_call");
 
 	OFP_DEBUG("end\n");
